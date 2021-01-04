@@ -1,7 +1,5 @@
-package yqs_test
-
 import org.apache.flink.api.common.functions
-import org.apache.flink.api.common.functions.{FilterFunction, FlatMapFunction, MapFunction, RichMapFunction, RichReduceFunction}
+import org.apache.flink.api.common.functions.{FilterFunction, FlatMapFunction, MapFunction, Partitioner, RichMapFunction, RichReduceFunction}
 import org.apache.flink.configuration.Configuration
 import org.apache.flink.streaming.api.{CheckpointingMode, scala}
 import org.apache.flink.streaming.api.datastream.DataStream
@@ -9,10 +7,15 @@ import org.apache.flink.streaming.api.functions.KeyedProcessFunction
 import org.apache.flink.streaming.api.functions.co.CoMapFunction
 import org.apache.flink.streaming.api.scala.StreamExecutionEnvironment
 import org.apache.flink.streaming.api.functions.source.SourceFunction
+import org.apache.flink.streaming.api.functions.timestamps.BoundedOutOfOrdernessTimestampExtractor
 import org.apache.flink.streaming.api.scala._
+import org.apache.flink.streaming.api.scala.function.WindowFunction
+import org.apache.flink.streaming.api.windowing.assigners.{ProcessingTimeSessionWindows, SlidingEventTimeWindows, SlidingProcessingTimeWindows}
+import org.apache.flink.streaming.api.windowing.evictors.CountEvictor
 import org.apache.flink.streaming.api.windowing.time.Time
+import org.apache.flink.streaming.api.windowing.triggers.CountTrigger
+import org.apache.flink.streaming.api.windowing.windows.TimeWindow
 import org.apache.flink.util.Collector
-
 import _root_.scala.collection.JavaConversions._
 
 object testWindow {
@@ -77,6 +80,39 @@ object testWindow {
     val key_c  = class_a.keyBy(0,1).minBy(2).map(a=>a.toString()+'minby).print()
     */
 
+    //分发 global、broadcast、forward、shuffle、rebalance、rescale、partitionCustom
+    /*
+    val class_a = text.map(lines =>  {
+          val s_a = lines.split(",")
+          (s_a(0), s_a(1).toLong, s_a(2).toInt)
+          //WaterSensor(s_a(0), s_a(1).toLong, s_a(2).toInt)
+        })
+    val key_a  = class_a
+      .global //全部发往第1个task
+      .broadcast //广播
+      .forward //上下游并发度一样时一对一发送
+      .shuffle //随机均匀分配
+      .rebalance //Round-Robin(轮流分配)
+      .rescale //Local Round-Robin(本地轮流分配)
+      .partitionCustom(new Partitioner[Long]{
+          override def partition(key: Long, numpartition: Int): Int = {
+            System.out.println("总的分区数"+numpartition)
+            if (key%2==0){
+              0
+            }else{
+              1
+            }
+          }
+        },0
+      ) //自定义单播
+    //分区之后的数据
+    val result = key_a.map(line => {
+      println("当前线程id" + Thread.currentThread().getId + ",value" + line)
+      line._1
+    })
+    result.print().setParallelism(1)
+    */
+
     //reduce https://blog.csdn.net/dinghua_xuexi/article/details/107766222
     /*
     val c = text
@@ -85,14 +121,24 @@ object testWindow {
             .map((_,1))
             .keyBy(0)
             //.reduce((x, y) => { (x._1, x._2 + y._2) })
-            .reduce(new RichReduceFunction[(String,Int)]{
-              override def open(parameters: Configuration): Unit = super.open(parameters)
-              override def reduce(value1: (String, Int), value2: (String, Int)): (String, Int) = {
-                (value1._1, value1._2 + value2._2)
-              }
-             })
+           .reduce(new RichReduceFunction[(String,Int)]{
+             override def open(parameters: Configuration): Unit = super.open(parameters)
+             override def reduce(value1: (String, Int), value2: (String, Int)): (String, Int) = {
+               (value1._1, value1._2 + value2._2)
+             }
+            })
             .print()
-      */
+    */
+
+    //fold
+    /*
+    val class_a = text.filter(r=> !r.isEmpty).map(lines =>  {
+          val s_a = lines.split(",")
+          (s_a(0), s_a(1).toLong, s_a(2).toInt)
+          //WaterSensor(s_a(0), s_a(1).toLong, s_a(2).toInt)
+        })
+    val key_a  = class_a.keyBy(0).fold(0)((str, i) => { str + i._3 }).print()
+    */
 
     //split 分流, select , union 合流(多个相同流,FIFO,不去重) https://zhuanlan.zhihu.com/p/99425612
     /*
@@ -149,15 +195,30 @@ object testWindow {
 
     //Window  http://wuchong.me/blog/2016/05/25/flink-internals-window-mechanism/
     /*
-      val c = text.map(r=>r).flatMap(r=>r.split(",")).map((_,1))
+       //.trigger()  - 触发器
+       //.evictor()  - 移除器
+       //.allowedLateness() – 允许处理迟到的数据
+       //.sideOutputLateData(lateOutputTag) – 将迟到的数据流放入侧输出流
+       //.getSideOutput(lateOutputTag) – 获取侧输出流
+
+      val c = text.map(r=>r)
+          .flatMap(r=>r.split(","))
+          .map((_,1))
       // 打印清洗后的数据
-      c.map(r=>("clean:",r)).print()
+      //c.map(r=>("clean:",r)).print()
 
       c.keyBy(0)
-        //      .timeWindow(Time.seconds(10), Time.seconds(3))
-        .timeWindow(Time.seconds(10))
-        .sum(1).map(r=>("result:",r)).print()
-     */
+        .timeWindow(Time.seconds(10), Time.seconds(3)) //Sliding滑动,每个3秒统计过去10秒
+        //.timeWindow(Time.seconds(10)) //Tumblin滚动
+        //.countWindow(5) 窗口数量 默认使用的是 processing time
+        //.countWindow(5, 2) //每2个元素统计过去5个元素的数量之和：
+        //基于Event Time，每5秒内的数据为界，以每秒的滑动窗口速度进行operator操作，但是，当且仅当5秒内的元素数达到8时，才触发窗口，触发时保留上个窗口的2个元素。
+        //.window(SlidingProcessingTimeWindows.of(Time.seconds(5), Time.seconds(1))).trigger(CountTrigger.of(8)).evictor(CountEvictor.of(10))
+        //.window(ProcessingTimeSessionWindows.withGap(Time.seconds(4))) //用户4秒没有活动则视为会话断开
+        .sum(1)
+        .map(r=>("result:",r))
+        .print()
+    */
 
     env.execute("Custom Source")
   }
