@@ -16,6 +16,14 @@ object testSource {
         WaterSensor("ws_003", 1577844020, 42.0)
       )
     ).print()
+
+    val dataStream: DataStream[(String, Long, Double)] =
+      env.fromElements(
+        ("0001", 0L, 121.2),
+        ("0002" ,1L, 201.8),
+        ("0003", 2L, 10.3),
+        ("0004", 3L, 99.6)
+       ).print()
     */
 
     //从文件中读取数据
