@@ -34,7 +34,8 @@ object IncrementalProcessExample {
   }
 
   case class MaxMinPrice(symbol: String, max: Double, min: Double, windowEndTs: Long)
-
+  //https://blog.csdn.net/weixin_38255219/article/details/106714493
+  //https://blog.csdn.net/qq_31866793/article/details/100121950
   class WindowEndProcessFunction extends ProcessWindowFunction[(String, Double, Double), MaxMinPrice, String, TimeWindow] {
 
     override def process(key: String,

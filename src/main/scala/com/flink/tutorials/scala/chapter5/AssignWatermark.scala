@@ -36,8 +36,9 @@ object AssignWatermark {
             new WatermarkGeneratorSupplier[(String, Long)] {
               override def createWatermarkGenerator(context: WatermarkGeneratorSupplier.Context): WatermarkGenerator[(String, Long)] =
                 new MyPeriodicGenerator
-          }
-          ).withTimestampAssigner(new SerializableTimestampAssigner[(String, Long)] {
+          })
+          .withTimestampAssigner(
+            new SerializableTimestampAssigner[(String, Long)] {
             override def extractTimestamp(t: (String, Long), l: Long): Long = t._2
           })
       )
@@ -47,6 +48,7 @@ object AssignWatermark {
     env.execute("periodic and punctuated watermark")
 
   }
+//https://blog.csdn.net/shenjianyu_rex/article/details/108453028
 
   // 定期生成Watermark
   // 数据流元素 (String, Long) 共两个字段
