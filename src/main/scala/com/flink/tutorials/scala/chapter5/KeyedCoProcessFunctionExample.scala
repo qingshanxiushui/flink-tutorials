@@ -26,7 +26,7 @@ object KeyedCoProcessFunctionExample {
       .addSource(new StockSource("stock/stock-tick-20200108.csv"))
       .assignTimestampsAndWatermarks(
         WatermarkStrategy
-          .forMonotonousTimestamps()
+          .forMonotonousTimestamps() //Watermark的发射时间为时间戳最大值，不添加任何延迟,默认升序
           .withTimestampAssigner(new SerializableTimestampAssigner[StockPrice] {
             override def extractTimestamp(t: StockPrice, l: Long): Long = t.ts
           })
@@ -53,7 +53,7 @@ object KeyedCoProcessFunctionExample {
     env.execute("stock tick data")
   }
 
-  /**
+  /** https://lulaoshi.info/flink/chapter-time-window/process-function.html
     * 四个泛型
     * Key
     * 第一个流类型

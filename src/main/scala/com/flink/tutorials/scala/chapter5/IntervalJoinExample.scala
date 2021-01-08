@@ -21,7 +21,7 @@ object IntervalJoinExample {
     val socketSource1 = senv.socketTextStream("localhost", 9000)
     val socketSource2 = senv.socketTextStream("localhost", 9001)
 
-    // 数据流有三个字段：（key, 时间戳, 数值）
+    //数据流有三个字段：（key, 时间戳, 数值）
     val input1: DataStream[(String, Long, Int)] = socketSource1.flatMap {
       (line: String, out: Collector[(String, Long, Int)]) => {
         val array = line.split(" ")
@@ -46,7 +46,7 @@ object IntervalJoinExample {
       }
     }.assignTimestampsAndWatermarks(
       WatermarkStrategy
-        .forBoundedOutOfOrderness(Duration.ofSeconds(1))
+        .forBoundedOutOfOrderness(Duration.ofSeconds(1)) //设置水位线的允许延迟时间为5s
         .withTimestampAssigner(new SerializableTimestampAssigner[(String, Long, Int)] {
         override def extractTimestamp(t: (String, Long, Int), l: Long): Long = t._2
       })
@@ -67,9 +67,7 @@ object IntervalJoinExample {
                                 input2: (String, Long, Int),
                                 context: ProcessJoinFunction[(String, Long, Int), (String, Long, Int), String]#Context,
                                 out: Collector[String]): Unit = {
-
       out.collect("input 1: " + input1.toString + ", input 2: " + input2.toString)
-
     }
   }
 

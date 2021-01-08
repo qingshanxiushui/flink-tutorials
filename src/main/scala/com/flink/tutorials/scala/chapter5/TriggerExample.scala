@@ -29,6 +29,7 @@ object TriggerExample {
     senv.execute("trigger")
   }
 
+  //在股票等交易场景中，我们比较关注价格急跌的情况，默认窗口长度是60秒，如果价格跌幅超过5%，则立即执行Window Function，如果价格跌幅在1%到5%之内，那么10秒后触发Window Function。
   class MyTrigger extends Trigger[StockPrice, TimeWindow] {
 
     override def onElement(element: StockPrice,
